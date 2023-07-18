@@ -1,0 +1,217 @@
+---
+title: "bailie23, ISIPTA 2023 submission"
+output: html_document
+author: "Bailie & Gong"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(jmuOutlier) # for laplace
+library(pracma) # for incomplete gamma function
+library(Matching)
+library(reshape2)
+library(ggplot2)
+library(rstan)
+library(RColorBrewer)
+library(xtable)
+options(scipen = 10)
+
+mypalette <- brewer.pal(3, 'Set1')
+plot.figures <- F
+```
+
+
+# Laplace mechanism for binary sum
+
+```{r}
+upper_ml <- function(x, eps, n){
+    #eps/2*exp(eps*(n/2 - abs(x - n/2)))
+    dlaplace(x = x, n/2, sqrt(2)/eps)*exp(eps*n/2)
+}
+  
+lower_ml <- function(x, eps, n){
+    #eps/2*exp(eps*(n/2 - abs(x - n/2)))
+    pmin(dlaplace(x = x, n/2, sqrt(2)/eps),
+         eps/2*exp(-eps*n/2))*exp(-eps*n/2)
+}
+
+
+plot_ml <- function(nobs, epsilon, color = 'blue'){
+  p_ <- ggplot(data.frame(x = seq(-nobs*2, nobs*3, by = 0.1)), aes(x)) +
+  geom_function(fun = lower_ml, args = list(eps = epsilon, n = nobs),
+                colour = color) +
+  theme_bw() +
+  labs(title = 'density bounds for p( t | \u03B8 )',  x = 't', y = 'density',
+       caption = paste0('n = ', nobs, ', \u03B5 = ', epsilon))
+
+
+  p_both <- p_ + geom_function(fun = upper_ml, args = list(eps = epsilon, n = nobs), colour = color) #+ labs(subtitle = 'Upper and lower densities')
+
+  p_lower <- p_ + labs(subtitle = 'Lower density only')
+  
+  return(list(both=p_both, lower=p_lower))
+}
+```
+
+## Visualizing the marginal likelihood IoM bounds
+
+A few combinations of $n$ and $\epsilon$ values:
+
+```{r}
+#plot_ml(nobs = 10, epsilon = 0.1)
+#plot_ml(nobs = 10, epsilon = 0.25)
+#plot_ml(nobs = 20, epsilon = 0.05)
+
+plot_ml(nobs = 10, epsilon = 0.1, color = mypalette[2])$both
+if (plot.figures){
+ggsave('marginal1.pdf', width = 4, height = 3.5, device = cairo_pdf)
+}
+
+plot_ml(nobs = 10, epsilon = 0.25, color = mypalette[2])$both
+if (plot.figures){
+ggsave('marginal2.pdf', width = 4, height = 3.5, device = cairo_pdf)
+}
+```
+
+
+# Local DP randomized response
+
+```{r}
+lower_rr <- function(t, eps){
+    (exp(eps) + 1)^(-t)
+}
+  
+upper_rr <- function(t, eps){
+  (exp(eps) + 1)^(-t)*exp(t*eps)
+}
+```
+
+```{r}
+epsilon <- 1
+nt = 10
+dat2 <- data.frame(t = seq(1, nt, by = 1)) %>%
+  mutate(lower = lower_rr(t=t, eps = epsilon)) %>%
+  mutate(upper = upper_rr(t=t, eps = epsilon)) %>%
+  pivot_longer(!t)
+#head(dat2)
+
+p_rr <- ggplot(dat2, aes(x = t, y = value, color = name)) +
+  geom_line() + geom_point() +
+  theme_bw() + scale_color_manual(values = mypalette[c(2, 2)], guide = 'none') +
+  scale_x_continuous(breaks = seq(2,10,2)) +
+  labs(title = 'density bounds for p( t | \u03B8 )',  x = '|t|', y = 'density',
+       caption = paste0('max |t| = ', nt, ', \u03B5 = ', epsilon))
+
+
+p_rr
+if (plot.figures){
+ggsave('marginal_rr.pdf', width = 5, height = 3.5, device = cairo_pdf)
+}
+```
+
+
+# Posterior bound
+
+Same model as Gong (2022, JPC).  Bayesian Poisson parameter estimation from a clamped single count protected using a Laplace mechanism. Data likelihood is
+$$x \mid \theta \sim Pois(\theta).$$
+Prior is
+$$\theta \sim Gamma(\alpha, 1)$$
+for a variety of $\alpha$ values. The privacy mechanism is
+$$s = \text{clamp}(x, A) + e, \quad e\sim Lap(\Delta\epsilon^{-1}),$$
+where $\text{clamp}(x, A)$ returns the nearest value in a pre-specified set $A$ to $x$. 
+
+The marginal likelihood is
+
+$$\ell(\theta; s) = p(s\mid \theta) = \int \eta(s \mid x)p(x\mid \theta)dx,$$
+and thus the Bayesian posterior $p(\theta \mid s) \propto p(\theta)\ell(\theta; s)$ which, due to clamping, does not admit a simple analytical solution. However, this can be simulated via ABC.
+
+```{r}
+clamp <- function(x, lower, upper){
+  y = x
+  y[y < lower] <- lower
+  y[y > upper] <- upper
+  return(y)
+}
+
+post_abc_clamp <- function(y, nsample = 1e3, a = 1, b = 1, 
+                           eps = 1, a0 = 0, a1 = 100){
+  # Gamma-Pois DP with clamping, ABC algorithm
+  # lower, upper: clamping range
+  sens <- a1 - a0
+  s_ <- sqrt(2)*sens/eps
+  temp_ <- function(nsim){
+    l_ <- rgamma(nsim, shape = a, rate = b)
+    x_ <- rpois(nsim, l_) %>% clamp(lower = a0, upper = a1)
+    probs <- dlaplace(y-x_, mean = 0, sd = s_)/dlaplace(0, mean = 0, sd = s_)
+    ind <- which(runif(nsim) < probs)
+    return(list(lambda = l_[ind], yield = max(1, length(ind))/nsim))
+  }
+  tp_ <- temp_(nsample)
+  lambda <- tp_$lambda; yield = tp_$yield
+  cat('Yield is about', yield)
+  if (length(lambda) < nsample){
+    lambda <- c(lambda, temp_(ceil(nsample/yield))$lambda)
+  }
+  return(list(lambda, yield))
+}
+
+
+prior_predictive <- function(nsim, a, b, a0, a1, eps){
+    l_ <- rgamma(nsim, shape = a, rate = b)
+    x_ <- rpois(nsim, l_) %>% clamp(lower = a0, upper = a1)
+    t_ <- x_ + rlaplace(nsim, mean = 0, sd = sqrt(2)*(a1-a0)/eps)
+    return(list(x = x_, t = t_))
+}
+```
+
+
+
+We obtain bounds for the posterior $p(\theta \mid s)$ in relation to $p(\theta)$.
+
+
+```{r}
+alpha <- 3; beta <- 1; # hyperparameters
+a0 <- 0; a1 <- 6
+epsilon <- 1
+
+set.seed(10)
+nruns = 10
+pp0 <- prior_predictive(nruns, a = alpha, b = beta, a0 = a0, a1 = a1, eps = epsilon)
+
+set.seed(100)
+draws = list()
+for (i in 1:nruns){
+  run_ <- post_abc_clamp(y = pp0$t[i], nsample = 2e3, 
+                         a = alpha, b = beta, eps = epsilon, a0 = a0, a1 = a1)
+  draws[[i]] <- run_[[1]]
+}
+
+
+draws.dat <- data.frame(sapply(draws, function(x) x[1:max(lengths(draws))])) %>%
+  pivot_longer(everything())
+
+ll <- seq(range(draws.dat$value, na.rm = T)[1], range(draws.dat$value, na.rm = T)[2], by = 0.05)
+
+dat <- data.frame(lambda = ll) %>%
+  mutate(prior = dgamma(lambda, shape = alpha, rate = beta)) %>%
+  mutate(upper = prior*exp(epsilon)) %>%
+  mutate(lower = prior*exp(-epsilon)) %>%
+  pivot_longer(!lambda)
+#head(dat)
+
+p <- ggplot(dat, aes(x = lambda, y = value, linetype = name)) +
+  geom_density(data = draws.dat, aes(group = name, x = value), color = 'gray80', inherit.aes = F) +
+  geom_line(color = mypalette[2]) +
+  scale_linetype_manual(values = c('solid', 'dashed', 'solid'), guide = 'none') +
+  theme_bw() +
+  labs(x = '\u03B8', y = 'posterior density', title = 'density bounds for posterior p( \u03B8 | t )',
+      caption = paste0('prior for \u03B8 is Gamma(', alpha, ',', beta, '), clamping range is [', a0, ',', a1, '], \u03B5 = ', epsilon))
+
+p
+if (plot.figures){
+ggsave('posterior.pdf', width = 5, height = 3.5, device = cairo_pdf)
+}
+```
