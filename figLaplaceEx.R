@@ -50,8 +50,8 @@ plotData <- tibble(t = rep(t, 2), px = c(firstDensity, secondDensity),
 
 #Variables for formatting the plot:
 #text <- "x\'"
-col1 <- "blue" #"#c6494a" #"#cc0033" 
-col2 <- "blue" #"#518b7b" #"#478C5C" 
+col1 <- mypalette[2] #"blue" #"#c6494a" #"#cc0033" 
+col2 <- mypalette[2] #"blue" #"#518b7b" #"#478C5C" 
 bracketCol <- "grey30" #"#bac075" #"#BACC81"
 b1 <- bracketsGrob(5/11+0.004, 0.05, 0.591*10/11+0.004, 0.05, h=0.05, lwd=1, col=bracketCol)
 
@@ -64,7 +64,7 @@ p <- p + geom_vline(xintercept = 10, linetype = "solid", color = "grey80") #This
 p <- p + geom_vline(xintercept = 11, linetype = "solid", color = "grey80")
 
 # Add the lines
-p <- p + geom_line(colour = "blue") +
+p <- p + geom_line(colour = col1) +
   scale_linetype_manual(values=c("solid", "twodash"), 
                         labels = list(TeX(r"($p_x$)"),
                                       TeX(r"($p_{x'}$)"))) #NOTE LABEL MUST BE LIST (APPARENTLY)
@@ -103,10 +103,13 @@ p <- p + geom_text(x = 10.5, y = 0.023, parse = T,
                    show.legend = FALSE,
                    color = bracketCol)
 
+#Add some x and y labels:
+p <- p + labs(x = 't', y = 'density',
+     caption = paste0('max |t| = ', nt, ', \u03B5 = ', epsilon))
 
 # Move the legend inside the plot
 p <- p + theme_bw() + labs(y = NULL, x = NULL, linetype = NULL, 
-                           caption = TeX(r"($\epsilon = 1)"),
+                           caption = TeX(r"($\epsilon = 1$)"),
                            title = TeX(r"(Two densities of the Laplace mechanism)")) + 
   theme(legend.position = c(.8,.775),
         legend.text.align = 0,
@@ -116,7 +119,7 @@ p <- p + theme_bw() + labs(y = NULL, x = NULL, linetype = NULL,
         panel.grid.major.x = element_blank())
 
 
-#print(p)
+print(p)
 
 
 ggsave('../figs/paperLaplaceEx.pdf', width = 5, height = 3.5)
