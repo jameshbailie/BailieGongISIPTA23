@@ -103,12 +103,8 @@ p <- p + geom_text(x = 10.5, y = 0.023, parse = T,
                    show.legend = FALSE,
                    color = bracketCol)
 
-#Add some x and y labels:
-p <- p + labs(x = 't', y = 'density',
-     caption = paste0('max |t| = ', nt, ', \u03B5 = ', epsilon))
-
 # Move the legend inside the plot
-p <- p + theme_bw() + labs(y = NULL, x = NULL, linetype = NULL, 
+p <- p + theme_bw() + labs(y = 'density', x = 't', linetype = NULL, #Add some x and y labels
                            caption = TeX(r"($\epsilon = 1$)"),
                            title = TeX(r"(Two densities of the Laplace mechanism)")) + 
   theme(legend.position = c(.8,.775),
@@ -119,10 +115,10 @@ p <- p + theme_bw() + labs(y = NULL, x = NULL, linetype = NULL,
         panel.grid.major.x = element_blank())
 
 
-print(p)
+#print(p)
 
 
-ggsave('../figs/paperLaplaceEx.pdf', width = 5, height = 3.5)
+ggsave('paperLaplaceEx.pdf', width = 5, height = 3.5)#ggsave('../figs/paperLaplaceEx.pdf', width = 5, height = 3.5)
 #ggsave('LaplaceEx.pdf', width = 5, height = 3.5, device = cairo_pdf) #This stuffs up the spacing of q(x')
 
 ###########################################
