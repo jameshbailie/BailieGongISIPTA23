@@ -13,6 +13,7 @@ library(jmuOutlier) # for laplace
 library(pracma) # for incomplete gamma function
 library(Matching)
 library(reshape2)
+library(ggplot2)
 library(rstan)
 library(RColorBrewer)
 library(xtable)
@@ -66,12 +67,12 @@ A few combinations of $n$ and $\epsilon$ values:
 
 plot_ml(nobs = 10, epsilon = 0.1, color = mypalette[2])$both
 if (plot.figures){
-ggsave('bailie23Figs/marginal1.pdf', width = 4, height = 3.5, device = cairo_pdf)
+ggsave('marginal1.pdf', width = 4, height = 3.5, device = cairo_pdf)
 }
 
 plot_ml(nobs = 10, epsilon = 0.25, color = mypalette[2])$both
 if (plot.figures){
-ggsave('bailie23Figs/marginal2.pdf', width = 4, height = 3.5, device = cairo_pdf)
+ggsave('marginal2.pdf', width = 4, height = 3.5, device = cairo_pdf)
 }
 ```
 
@@ -107,7 +108,7 @@ p_rr <- ggplot(dat2, aes(x = t, y = value, color = name)) +
 
 p_rr
 if (plot.figures){
-ggsave('bailie23Figs/marginal_rr.pdf', width = 5, height = 3.5, device = cairo_pdf)
+ggsave('marginal_rr.pdf', width = 5, height = 3.5, device = cairo_pdf)
 }
 ```
 
@@ -211,6 +212,6 @@ p <- ggplot(dat, aes(x = lambda, y = value, linetype = name)) +
 
 p
 if (plot.figures){
-ggsave('bailie23Figs/posterior.pdf', width = 5, height = 3.5, device = cairo_pdf)
+ggsave('posterior.pdf', width = 5, height = 3.5, device = cairo_pdf)
 }
 ```
