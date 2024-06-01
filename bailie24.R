@@ -12,6 +12,10 @@ library(graphics)
 library(cowplot)
 options(scipen = 10)
 
+library("here")
+setwd(here())
+
+
 mypalette <- brewer.pal(3, 'Set1')
 
 common_theme <- function(...) {
@@ -50,7 +54,7 @@ second_density <- function(x, eps, mu){
 #Making the plot data:
 eps <- 2
 mu <- 10
-t <- seq(8,13,0.01)
+t <- seq(5,16,0.01)
 firstDensity <- one_density(x = t, eps = eps, mu = mu)
 secondDensity <- second_density(x = t, eps = eps, mu = mu)
 numPoints <- length(t)
@@ -64,7 +68,22 @@ col1 <- mypalette[2]
 col2 <- mypalette[2] 
 bracketCol <- "grey30"
 vlineCol <- bracketCol
-b1 <- bracketsGrob(5/11+0.004, 0.05, 0.591*10/11+0.004, 0.05, h=0.05, lwd=1, col=bracketCol)
+
+
+xAxisLimits <- c(8,13)
+xAxisBreaks <- xAxisLimits[1]:xAxisLimits[2]
+expandConstant <- 0.06*(xAxisLimits[2]-xAxisLimits[1])
+xAxisLimits <- c(xAxisLimits[1]-expandConstant,xAxisLimits[2]+expandConstant)
+xAxisLabels <- c("$q(x)-2$", "$q(x)-1$", "$q(x)$", "$q(x')$", "$q(x')+1$", "$q(x')+2$")
+
+b1Start <- (10-xAxisLimits[1])/(xAxisLimits[2]-xAxisLimits[1])
+b1End <- (11-xAxisLimits[1])/(xAxisLimits[2]-xAxisLimits[1])
+b1 <- bracketsGrob(b1Start, 0.05, b1End, 0.05, h=0.05, lwd=1, col=bracketCol)
+
+firstSegmentX <- 9.49
+secondSegmentX <- 9.51
+distXLabel <- 0.03
+distYLabel <- -0.01
 
 #Making the plot
 p <- ggplot(plotData, aes(x = t, y = px, linetype=factor(type)))
@@ -75,23 +94,25 @@ p <- p + geom_line(colour = col1) +
                         labels = c("$p_x(t)$",
                                    "$p_{x'}(t)$"))
 
-# p <- p + scale_x_continuous(breaks = 5:16,
-#                             labels = c(rep("", 4),"$q(x)-\\Delta(q)$", "$q(x)$", "$q(x')$", rep("", 5)))
+p <- p + scale_x_continuous(limits = xAxisLimits,
+                            breaks = xAxisBreaks,
+                            expand = c(0,0),
+                            labels = xAxisLabels)
 
 #Add the ratio of densities
-p <- p + geom_segment(x = 8.5975, xend = 8.5975, y = 0, yend = one_density(x = 8.5975, eps = eps, mu = mu),#-0.001,
+p <- p + geom_segment(x = firstSegmentX, xend = firstSegmentX, y = 0, yend = one_density(x = firstSegmentX, eps = eps, mu = mu),#-0.001,
                       linetype = "solid", color = "grey30", linewidth = 0.4) +
-  geom_segment(x = 8.6975, xend = 8.6975, y = 0, yend = second_density(x = 8.6975, eps = eps, mu = mu),#-0.001,
+  geom_segment(x = secondSegmentX, xend = secondSegmentX, y = 0, yend = second_density(x = secondSegmentX, eps = eps, mu = mu),#-0.001,
                linetype = "solid", color = "grey30", linewidth = 0.4)
 
-p <- p + draw_label(x = 8.65, y = 0.1,#one_density(x = 9, eps = eps, mu = mu) + 0.02, 
+p <- p + draw_label(x = firstSegmentX+distXLabel, y = one_density(x = firstSegmentX, eps = eps, mu = mu)+distYLabel,#one_density(x = 9, eps = eps, mu = mu) + 0.02, 
                    label = "$.05\\exp(\\varepsilon)$", 
                    color = "grey30",
                    hjust = 0, 
                    fontfamily = title_theme$family,
                    fontface = title_theme$face,
                    size = title_theme$size) +
-  draw_label(x = 8.75, y = 0.03,#one_density(x = 9, eps = eps, mu = mu) + 0.02,
+  draw_label(x = secondSegmentX+distXLabel, y = second_density(x = secondSegmentX, eps = eps, mu = mu)+distYLabel,#one_density(x = 9, eps = eps, mu = mu) + 0.02,
             label = list("$.05$"), 
             color = "grey30",
             hjust = 0,
@@ -103,7 +124,7 @@ p <- p + draw_label(x = 8.65, y = 0.1,#one_density(x = 9, eps = eps, mu = mu) + 
 p <- p + annotation_custom(b1)
 
 # Add the label "\Delta(q)=1"
-p <- p + draw_label(x = 10.5, y = 0.03,
+p <- p + draw_label(x = 10.5, y = 0.07,
                    label = "$\\Delta(q)=1$",
                    fontfamily = title_theme$family,
                    fontface = title_theme$face,
@@ -114,13 +135,14 @@ p <- p + draw_label(x = 10.5, y = 0.03,
 # Move the legend inside the plot
 p <- p + common_theme() + 
   labs(y = 'Density', x = '$t$', linetype = NULL) + 
-  theme(legend.position = c(.8,.775),
-        legend.text.align = 0,
-        legend.box.background = element_rect(colour = "grey30"),
-        legend.margin=margin(t=-0.19, r=0.1, b=0, l=0, unit="cm"))
+  theme(legend.position = "inside",
+        legend.position.inside = c(.8,.775),
+        legend.text = element_text(hjust=0),
+        legend.box.background = element_rect(colour = "grey30"))
+        #legend.margin=margin(t=-0.19, r=0.1, b=0, l=0, unit="cm"))
 
 
-print(p)
+#print(p)
 tikz('bailie24Figs/laplaceTikZ.tex', width = 5, height = 3.5)
 p
 dev.off()
@@ -146,12 +168,19 @@ lower_ml <- function(x, eps, n){
 
 
 plot_ml <- function(nobs, epsilon, color = 'blue'){
-  p_ <- ggplot(data.frame(x = seq(-nobs*2, nobs*3, by = 0.1)), aes(x)) +
+  xAxisLimits <- c(-nobs*2,nobs*3)
+  #xAxisBreaks <- xAxisLimits[1]:xAxisLimits[2]
+  expandConstant <- 0.05*(xAxisLimits[2]-xAxisLimits[1])
+  xAxisLimits <- c(xAxisLimits[1]-expandConstant,xAxisLimits[2]+expandConstant)
+  
+  p_ <- ggplot(data.frame(x = seq(xAxisLimits[1], xAxisLimits[2], by = 0.1)), aes(x)) +
     geom_function(fun = lower_ml, args = list(eps = epsilon, n = nobs),
                   colour = color) +
+    scale_x_continuous(expand = c(0,0)) +
     theme_bw() +
-    labs(title = 'density bounds for p( t | \u03B8 )',  x = 't', y = 'density',
-         caption = paste0('n = ', nobs, ', \u03B5 = ', epsilon))
+    labs(#title = 'density bounds for p( t | \u03B8 )',  
+         x = '$t$', y = 'Density')
+         #caption = paste0('n = ', nobs, ', \u03B5 = ', epsilon))
   
   
   p_both <- p_ + geom_function(fun = upper_ml, args = list(eps = epsilon, n = nobs), colour = color) #+ labs(subtitle = 'Upper and lower densities')
@@ -161,11 +190,17 @@ plot_ml <- function(nobs, epsilon, color = 'blue'){
   return(list(both=p_both, lower=p_lower))
 }
 
-plot_ml(nobs = 10, epsilon = 0.1, color = mypalette[2])$both
-ggsave('bailie24Figs/marginal1.pdf', width = 4, height = 3.5, device = cairo_pdf)
+p <- plot_ml(nobs = 10, epsilon = 0.1, color = mypalette[2])$both
+print(p)
+tikz('bailie24Figs/marginal1TikZ.tex', width = 4, height = 3.5)
+p
+dev.off()
 
-plot_ml(nobs = 10, epsilon = 0.25, color = mypalette[2])$both
-ggsave('bailie24Figs/marginal2.pdf', width = 4, height = 3.5, device = cairo_pdf)
+p <- plot_ml(nobs = 10, epsilon = 0.25, color = mypalette[2])$both
+print(p)
+tikz('bailie24Figs/marginal2TikZ.tex', width = 4, height = 3.5)
+p
+dev.off()
 
 ############################################################################
 
@@ -193,12 +228,15 @@ p_rr <- ggplot(dat2, aes(x = t, y = value, color = name)) +
   geom_line() + geom_point() +
   theme_bw() + scale_color_manual(values = mypalette[c(2, 2)], guide = 'none') +
   scale_x_continuous(breaks = seq(2,10,2)) +
-  labs(title = 'density bounds for p( t | \u03B8 )',  x = '|t|', y = 'density',
-       caption = paste0('max |t| = ', nt, ', \u03B5 = ', epsilon))
+  labs(#title = 'density bounds for p( t | \u03B8 )',  
+       x = '$|t|$', y = 'Density')
+       #caption = paste0('max |t| = ', nt, ', \u03B5 = ', epsilon))
 
 
 p_rr
-ggsave('bailie24Figs/marginal_rr.pdf', width = 5, height = 3.5, device = cairo_pdf)
+tikz('bailie24Figs/marginal_rrTikZ.tex', width = 5, height = 3.5)
+p_rr
+dev.off()
 
 
 ############################################################################
@@ -279,11 +317,14 @@ p <- ggplot(dat, aes(x = lambda, y = value, linetype = name)) +
   geom_line(color = mypalette[2]) +
   scale_linetype_manual(values = c('solid', 'dashed', 'solid'), guide = 'none') +
   theme_bw() +
-  labs(x = '\u03B8', y = 'posterior density', title = 'density bounds for posterior p( \u03B8 | t )',
-       caption = paste0('prior for \u03B8 is Gamma(', alpha, ',', beta, '), clamping range is [', a0, ',', a1, '], \u03B5 = ', epsilon))
+  labs(x = '$\\theta$', y = 'Posterior density')#, title = 'density bounds for posterior p( \u03B8 | t )',
+       #caption = paste0('prior for \u03B8 is Gamma(', alpha, ',', beta, '), clamping range is [', a0, ',', a1, '], \u03B5 = ', epsilon))
 
 p
-ggsave('bailie24Figs/posterior.pdf', width = 5, height = 3.5, device = cairo_pdf)
+
+tikz('bailie24Figs/posteriorTikZ.tex', width = 5, height = 3.5)
+p
+dev.off()
 
 ############################################################################
 
