@@ -10,6 +10,7 @@ library(xtable)
 library(tikzDevice)
 library(graphics)
 library(cowplot)
+library(magrittr)
 options(scipen = 10)
 
 library("here")
@@ -18,10 +19,16 @@ setwd(here())
 
 mypalette <- brewer.pal(3, 'Set1')
 
+panelBorderColour <- calc_element('panel.border', common_theme())$colour
+panelBorderWidth <- 0.8#calc_element('panel.border', common_theme())$linewidth
+
 common_theme <- function(...) {
-  theme_bw(...)
+  theme_bw(...) +
+  theme(panel.border = element_rect(linewidth = panelBorderWidth))
 }
 title_theme <- calc_element("axis.text.x", common_theme())
+
+marginal12RelSize <- 0.49
 
 
 ############################################################################
@@ -138,11 +145,12 @@ p <- p + common_theme() +
   theme(legend.position = "inside",
         legend.position.inside = c(.8,.775),
         legend.text = element_text(hjust=0),
-        legend.box.background = element_rect(colour = "grey30"))
+        legend.box.background = element_rect(colour = panelBorderColour,
+                                             linewidth = panelBorderWidth))
+        #legend.box.background = element_rect(colour = "grey30"))
         #legend.margin=margin(t=-0.19, r=0.1, b=0, l=0, unit="cm"))
 
-
-#print(p)
+print(p)
 tikz('bailie24Figs/laplaceTikZ.tex', width = 5, height = 3.5)
 p
 dev.off()
@@ -176,8 +184,10 @@ plot_ml <- function(nobs, epsilon, color = 'blue'){
   p_ <- ggplot(data.frame(x = seq(xAxisLimits[1], xAxisLimits[2], by = 0.1)), aes(x)) +
     geom_function(fun = lower_ml, args = list(eps = epsilon, n = nobs),
                   colour = color) +
-    scale_x_continuous(expand = c(0,0)) +
-    theme_bw() +
+    scale_x_continuous(expand = c(0,0),
+                       breaks = c(-nobs*1.5, nobs*0.5, nobs*2.5)) +
+    scale_y_continuous(n.breaks = 4) +
+    common_theme() +
     labs(#title = 'density bounds for p( t | \u03B8 )',  
          x = '$t$', y = 'Density')
          #caption = paste0('n = ', nobs, ', \u03B5 = ', epsilon))
@@ -192,13 +202,13 @@ plot_ml <- function(nobs, epsilon, color = 'blue'){
 
 p <- plot_ml(nobs = 10, epsilon = 0.1, color = mypalette[2])$both
 print(p)
-tikz('bailie24Figs/marginal1TikZ.tex', width = 4, height = 3.5)
+tikz('bailie24Figs/marginal1TikZ.tex', width = 5*marginal12RelSize, height = 3.5*marginal12RelSize)
 p
 dev.off()
 
 p <- plot_ml(nobs = 10, epsilon = 0.25, color = mypalette[2])$both
 print(p)
-tikz('bailie24Figs/marginal2TikZ.tex', width = 4, height = 3.5)
+tikz('bailie24Figs/marginal2TikZ.tex', width = 5*marginal12RelSize, height = 3.5*marginal12RelSize)
 p
 dev.off()
 
@@ -224,10 +234,25 @@ dat2 <- data.frame(t = seq(1, nt, by = 1)) %>%
   pivot_longer(!t)
 #head(dat2)
 
+xAxisLimits <- c(1,10)
+xAxisBreaks <- seq(2,10,2)
+expandConstant <- 0.05*(xAxisLimits[2]-xAxisLimits[1])
+xAxisLimits <- c(xAxisLimits[1]-expandConstant,xAxisLimits[2]+expandConstant)
+
+dat2 %<>% add_row(t = xAxisLimits[2], 
+                  value = c(
+                    lower_rr(nt,epsilon)*(11-xAxisLimits[2])+lower_rr(nt+1,epsilon)*(xAxisLimits[2]-10),
+                    upper_rr(nt,epsilon)*(11-xAxisLimits[2])+upper_rr(nt+1,epsilon)*(xAxisLimits[2]-10)
+                  ),
+                  name = c("lower", "upper"))
+
+
 p_rr <- ggplot(dat2, aes(x = t, y = value, color = name)) +
-  geom_line() + geom_point() +
-  theme_bw() + scale_color_manual(values = mypalette[c(2, 2)], guide = 'none') +
-  scale_x_continuous(breaks = seq(2,10,2)) +
+  geom_line() + geom_point(data = dat2[dat2$t <= nt,]) +
+  common_theme() + scale_color_manual(values = mypalette[c(2, 2)], guide = 'none') +
+  scale_x_continuous(limits = xAxisLimits,
+                     breaks = xAxisBreaks,
+                     expand = c(0,0)) +
   labs(#title = 'density bounds for p( t | \u03B8 )',  
        x = '$|t|$', y = 'Density')
        #caption = paste0('max |t| = ', nt, ', \u03B5 = ', epsilon))
@@ -316,7 +341,7 @@ p <- ggplot(dat, aes(x = lambda, y = value, linetype = name)) +
   geom_density(data = draws.dat, aes(group = name, x = value), color = 'gray80', inherit.aes = F) +
   geom_line(color = mypalette[2]) +
   scale_linetype_manual(values = c('solid', 'dashed', 'solid'), guide = 'none') +
-  theme_bw() +
+  common_theme() +
   labs(x = '$\\theta$', y = 'Posterior density')#, title = 'density bounds for posterior p( \u03B8 | t )',
        #caption = paste0('prior for \u03B8 is Gamma(', alpha, ',', beta, '), clamping range is [', a0, ',', a1, '], \u03B5 = ', epsilon))
 
