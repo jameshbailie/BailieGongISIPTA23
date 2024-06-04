@@ -13,11 +13,16 @@ library(cowplot)
 library(magrittr)
 options(scipen = 10)
 
+#setwd("~/Documents/git/BailieGongISIPTA23")
 library("here")
 setwd(here())
 
 
 mypalette <- brewer.pal(3, 'Set1')
+
+common_theme <- function(...) {
+  theme_bw(...)
+}
 
 panelBorderColour <- calc_element('panel.border', common_theme())$colour
 panelBorderWidth <- 0.8#calc_element('panel.border', common_theme())$linewidth
@@ -108,9 +113,13 @@ p <- p + scale_x_continuous(limits = xAxisLimits,
 
 #Add the ratio of densities
 p <- p + geom_segment(x = firstSegmentX, xend = firstSegmentX, y = 0, yend = one_density(x = firstSegmentX, eps = eps, mu = mu),#-0.001,
-                      linetype = "solid", color = "grey30", linewidth = 0.4) +
+                      linetype = "solid", color = panelBorderColour,#"grey30"
+                      linewidth = panelBorderWidth*0.352777778#0.4 #Change the units by 0.35 because https://stackoverflow.com/questions/17311917/ggplot2-the-unit-of-size
+                      ) +
   geom_segment(x = secondSegmentX, xend = secondSegmentX, y = 0, yend = second_density(x = secondSegmentX, eps = eps, mu = mu),#-0.001,
-               linetype = "solid", color = "grey30", linewidth = 0.4)
+               linetype = "solid", color = panelBorderColour,#"grey30"
+               linewidth = panelBorderWidth*0.352777778#0.4
+  )
 
 p <- p + draw_label(x = firstSegmentX+distXLabel, y = one_density(x = firstSegmentX, eps = eps, mu = mu)+distYLabel,#one_density(x = 9, eps = eps, mu = mu) + 0.02, 
                    label = "$.05\\exp(\\varepsilon)$", 
